@@ -33,7 +33,7 @@
     "exclude": [
       "test/**"
     ],
-    "check-coverage": false,
+    "check-coverage": true,
     "lines": 75,
     "functions": 75,
     "branches": 75,

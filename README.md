@@ -196,6 +196,22 @@ Tests mirror `src/` layout (`test/common/`, `test/lib/`, etc.). Shared fixtures:
 
 ---
 
+## Tools used to build this
+
+The project was developed on **macOS** using the following setup. These are the environment and workflow tools, not the runtime stack (see [Stack](#stack) above).
+
+| Tool | Role |
+|------|------|
+| **[Cursor](https://cursor.com/)** | Primary IDE — editing, search, integrated terminal, and AI-assisted development |
+| **Cursor Agent / Chat** | Used throughout to explore the codebase, implement features, refactor, write tests, and draft documentation; human review and edits applied before commit |
+| **[iTerm2](https://iterm2.com/)** | Terminal for running the crawler, tests, git, and npm |
+| **[Homebrew](https://brew.sh/)** | macOS package manager — used to install CLI tools (including Node.js or helpers such as [nvm](https://github.com/nvm-sh/nvm)) |
+| **Git / [GitHub](https://github.com/)** | Version control, pull requests, and CI via GitHub Actions |
+
+**Typical workflow:** edit in Cursor → run `npm test` in iTerm2 → commit and push to GitHub. AI suggestions were treated as drafts: design choices, simplifications, and final wording were reviewed manually before landing in the repo.
+
+---
+
 ## License
 
 MIT

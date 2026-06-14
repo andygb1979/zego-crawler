@@ -1,5 +1,4 @@
 const testDefaults = require('./defaults');
-const { FetchAbortReason } = require('../../src/common/fetchErrors');
 const { HttpHeader } = require('../../src/common/httpConstants');
 
 const createMockResponse = ({
@@ -27,7 +26,7 @@ const createMockResponse = ({
 const createMockPageFetcher = (handler) => ({
   fetch: async (url, options) => {
     if (options.signal.aborted) {
-      throw Object.assign(new Error('aborted'), { name: FetchAbortReason.ABORT_ERROR });
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
     }
 
     return handler(url, options);

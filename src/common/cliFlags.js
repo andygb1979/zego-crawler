@@ -4,9 +4,8 @@ const CliFlag = Object.freeze({
   OPTION_PREFIX: '--',
 });
 
-const HELP_FLAGS = new Set([CliFlag.HELP_SHORT, CliFlag.HELP_LONG]);
+const isHelpFlag = (arg) => arg === '-h' || arg === '--help';
 
-const isHelpFlag = (arg) => HELP_FLAGS.has(arg);
 
 module.exports = {
   CliFlag,

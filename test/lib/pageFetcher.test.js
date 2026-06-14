@@ -1,6 +1,5 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
-const { FetchAbortReason } = require('../../src/common/fetchErrors');
 const { HttpHeader, RedirectMode } = require('../../src/common/httpConstants');
 
 const GOT_MODULE_PATH = require.resolve('got');
@@ -83,7 +82,7 @@ describe('lib/pageFetcher', () => {
 
     describe('when got rejects with an abort or timeout error', () => {
       it('should throw a readable timeout or abort message', async () => {
-        gotStub.rejects(Object.assign(new Error('aborted'), { name: FetchAbortReason.ABORT_ERROR }));
+        gotStub.rejects(Object.assign(new Error('aborted'), { name: 'AbortError' }));
 
         const { createGotPageFetcher } = loadPageFetcherWithGotStub(gotStub);
 

@@ -1,7 +1,5 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
-const { FetchAbortReason } = require('../src/common/fetchErrors');
-const { HttpStatus } = require('../src/common/httpStatus');
 const mockFetch = require('./helpers/mockFetch');
 const testDefaults = require('./helpers/defaults');
 const crawler = require('../src/crawler');
@@ -154,7 +152,7 @@ describe('crawler', () => {
           fetchHandler = async () =>
             createMockResponse({
               url: urls.origin,
-              status: HttpStatus.SERVER_ERROR_MIN,
+              status: 500,
               ok: false,
             });
 
@@ -168,7 +166,7 @@ describe('crawler', () => {
           fetchHandler = async () =>
             createMockResponse({
               url: urls.origin,
-              status: HttpStatus.NOT_FOUND,
+              status: 404,
               ok: false,
             });
 
@@ -183,7 +181,7 @@ describe('crawler', () => {
           fetchHandler = async () =>
             createMockResponse({
               url: urls.origin,
-              status: HttpStatus.UNAUTHORIZED,
+              status: 401,
               ok: false,
             });
 
@@ -198,7 +196,7 @@ describe('crawler', () => {
       describe('with timeout errors', () => {
         it('should log a readable timeout or abort message for timeout error names', async () => {
           fetchHandler = async () => {
-            throw Object.assign(new Error('timed out'), { name: FetchAbortReason.TIMEOUT_ERROR });
+            throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
           };
 
           await runCrawler(urls.retry);
@@ -210,7 +208,7 @@ describe('crawler', () => {
       describe('with aborted requests', () => {
         it('should log a readable timeout or abort message', async () => {
           fetchHandler = async () => {
-            throw Object.assign(new Error('aborted'), { name: FetchAbortReason.ABORT_ERROR });
+            throw Object.assign(new Error('aborted'), { name: 'AbortError' });
           };
 
           await runCrawler(urls.retry);
@@ -239,7 +237,7 @@ describe('crawler', () => {
         fetchHandler = async (_url, options) =>
           new Promise((_resolve, reject) => {
             options.signal.addEventListener('abort', () => {
-              reject(Object.assign(new Error('aborted'), { name: FetchAbortReason.ABORT_ERROR }));
+              reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
             });
           });
 

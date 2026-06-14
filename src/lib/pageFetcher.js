@@ -1,8 +1,11 @@
+// HTTP client wrapper — adapts got responses to a fetch-like shape used by the crawler.
+
 const gotModule = require('got');
 const got = gotModule.default ?? gotModule;
 const { isAbortOrTimeout } = require('../common/fetchErrors');
 const { RedirectMode } = require('../common/httpConstants');
 
+// Map a got response to { ok, status, url, headers.get(), text() }.
 const _toPageResponse = (response) => {
   const _getHeader = (name) => {
     const value = response.headers[name.toLowerCase()];
@@ -28,7 +31,7 @@ const createGotPageFetcher = () => ({
           'User-Agent': options.userAgent,
         },
         followRedirect: options.redirect === RedirectMode.FOLLOW,
-        throwHttpErrors: false,
+        throwHttpErrors: false, // crawler checks response.ok itself
         signal: options.signal,
       });
 

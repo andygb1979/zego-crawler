@@ -17,9 +17,16 @@ const HTTP_STATUS_DESCRIPTIONS = Object.freeze({
 
 const HTTP_STATUS_ERROR_PATTERN = /^HTTP (\d{3})$/;
 
-const getHttpStatusDescription = (status) => status >= HttpStatus.SERVER_ERROR_MIN ? 'server error' : HTTP_STATUS_DESCRIPTIONS[status] ?? 'HTTP error';
+const getHttpStatusDescription = (status) => {
+  if (status >= HttpStatus.SERVER_ERROR_MIN) return 'server error';
 
-const parseHttpStatusErrorMessage = (message) => ((match) => (match ? Number(match[1]) : null))(message.match(HTTP_STATUS_ERROR_PATTERN));
+  return HTTP_STATUS_DESCRIPTIONS[status] ?? 'HTTP error';
+};
+
+const parseHttpStatusErrorMessage = (message) => {
+  const match = message.match(HTTP_STATUS_ERROR_PATTERN);
+  return match ? Number(match[1]) : null;
+};
 
 module.exports = {
   HttpStatus,

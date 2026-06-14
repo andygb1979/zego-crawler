@@ -1,6 +1,8 @@
+// URL normalisation, same-host checks, and start-URL validation.
+
 const config = require('../config');
 
-const _normalizeUrlWithOptions = (rawUrl, baseUrl, options) => {
+const normalizeUrl = (rawUrl, baseUrl) => {
   let parsed;
 
   try {
@@ -9,29 +11,17 @@ const _normalizeUrlWithOptions = (rawUrl, baseUrl, options) => {
     return null;
   }
 
-  const fetchableProtocols = new Set(options.fetchableProtocols);
-  if (!fetchableProtocols.has(parsed.protocol)) return null;
+  const allowedProtocols = config.getUrls().fetchableProtocols;
+  if (!allowedProtocols.includes(parsed.protocol)) return null;
 
   parsed.hash = '';
 
-  if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) parsed.pathname = parsed.pathname.slice(0, -1);
+  if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) {
+    parsed.pathname = parsed.pathname.slice(0, -1);
+  }
 
   return parsed.href;
 };
-
-const _isHtmlResponseWithOptions = (contentType, options) =>
-  !contentType
-    ? options.treatMissingContentTypeAsHtml
-    : options.mediaTypes.includes(contentType.split(';')[0].trim().toLowerCase());
-
-const _formatInvalidStartUrlError = (rawUrl, label = 'base URL') =>
-  `Invalid ${label}: ${rawUrl}\n` +
-  'Provide a full http:// or https:// URL. Wrap it in quotes if it contains & or spaces.';
-
-const normalizeUrl = (rawUrl, baseUrl) =>
-  _normalizeUrlWithOptions(rawUrl, baseUrl, {
-    fetchableProtocols: config.getUrls().fetchableProtocols,
-  });
 
 const isSameHost = (url, host) => {
   try {
@@ -41,12 +31,27 @@ const isSameHost = (url, host) => {
   }
 };
 
-const isHtmlResponse = (contentType) => _isHtmlResponseWithOptions(contentType, config.getHtml());
+const isHtmlResponse = (contentType) => {
+  const htmlConfig = config.getHtml();
 
-const parseStartUrl = (rawUrl, label = 'base URL') =>
-  ((url) => (url ? { valid: true, url } : { valid: false, error: _formatInvalidStartUrlError(rawUrl, label) }))(
-    normalizeUrl(rawUrl.trim()),
-  );
+  if (!contentType) return htmlConfig.treatMissingContentTypeAsHtml;
+
+  const mediaType = contentType.split(';')[0].trim().toLowerCase();
+  return htmlConfig.mediaTypes.includes(mediaType);
+};
+
+const parseStartUrl = (rawUrl, label = 'base URL') => {
+  const url = normalizeUrl(rawUrl.trim());
+
+  if (url) return { valid: true, url };
+
+  return {
+    valid: false,
+    error:
+      `Invalid ${label}: ${rawUrl}\n` +
+      'Provide a full http:// or https:// URL. Wrap it in quotes if it contains & or spaces.',
+  };
+};
 
 module.exports = {
   normalizeUrl,

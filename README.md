@@ -122,8 +122,9 @@ Same-host links are followed. Other domains may appear in output but are **not**
 | **Node.js 20+** | Runtime (LTS recommended) |
 | **CommonJS** | `const foo = require('…')` / `module.exports = { … }` — like a flat import style without ES modules |
 | **`src/`** | Application source, run directly |
+| **`src/cli.js`** | CLI — argument parsing, usage text, orchestration |
 | **`src/config/`** | JSON defaults + accessors (concurrency, timeouts, selectors) |
-| **`src/common/`** | Shared enums/constants (HTTP status codes, abort reasons, CLI flags) |
+| **`src/common/`** | Shared constants and helpers (HTTP status labels, abort/timeout detection, CLI flags) |
 | **`src/lib/`** | HTTP client, HTML parsing helpers, URL utilities |
 
 ### Dependencies
@@ -152,7 +153,8 @@ CI (`.github/workflows/node.js.yml`) runs `npm test` on Node 20, 22, and 24.
 
 ```mermaid
 flowchart TD
-  CLI[index.js] -->|parseArgs| Crawler[crawler.js]
+  Entry[index.js] -->|runCrawler| CLI[cli.js]
+  CLI -->|parseArgs / crawl| Crawler[crawler.js]
   Crawler --> Fetcher[lib/pageFetcher.js]
   Crawler --> Links[lib/linkExtractor.js]
   Crawler --> Utils[lib/utils.js]
@@ -165,22 +167,24 @@ flowchart TD
 
 | Module | Responsibility |
 |--------|----------------|
-| `index.js` | CLI entry — parses args, validates URL, invokes crawler. Commander’s default stderr is suppressed; this module prints its own error messages. |
-| `crawler.js` | BFS crawl engine — queue, concurrency pool, link discovery, console output |
+| `index.js` | Thin executable entry — calls `cli.runCrawler()` and catches unexpected top-level errors |
+| `cli.js` | CLI — parses args with Commander (stderr suppressed so errors are printed once), rejoins shell-split query strings, invokes the crawler |
+| `crawler.js` | Validates the start URL, then runs the BFS crawl engine — queue, concurrency pool, link discovery, console output |
 | `lib/pageFetcher.js` | Thin [got](https://github.com/sindresorhus/got) wrapper |
 | `lib/linkExtractor.js` | Cheerio link extraction |
-| `lib/utils.js` | URL normalisation, same-host checks, content-type checks |
-| `common/` | Frozen enum objects for HTTP status, fetch abort/timeout detection, CLI flags |
+| `lib/utils.js` | URL normalisation, same-host checks, content-type checks, start-URL validation |
+| `common/` | Frozen constant objects (`HttpStatus`, `CliFlag`, etc.) plus shared helpers such as `isAbortOrTimeout` and HTTP status message parsing |
 
-**Programmatic use** (import the library like a Python package):
+**Programmatic use** (`package.json` `"main"` points at the crawler, not the CLI):
 
 ```javascript
-const { createCrawler } = require('./src/crawler');
+const { createCrawler, crawl } = require('./src/crawler');
 
-await createCrawler('https://example.com', { maxPages: 10 }).run();
+await crawl('https://example.com', { maxPages: 10 });
+// or: await createCrawler('https://example.com', { maxPages: 10 }).run();
 ```
 
-Optional third argument: inject custom `pageFetcher`, `linkExtractor`, `scopePolicy`, or `pageReporter` (used heavily in tests).
+Optional third argument: inject a custom `pageFetcher` (used in tests to mock HTTP).
 
 ---
 
@@ -192,7 +196,7 @@ npm run test:unit     # tests only
 npm run coverage      # tests + HTML coverage report in coverage/
 ```
 
-Tests mirror `src/` layout (`test/common/`, `test/lib/`, etc.). Shared fixtures: `test/fixtures/defaults.json`.
+Tests mirror `src/` layout (`test/cli.test.js`, `test/crawler.test.js`, `test/common/`, `test/lib/`, etc.). Shared fixtures: `test/fixtures/defaults.json`.
 
 ---
 

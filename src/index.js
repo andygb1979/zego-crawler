@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+
 const { runCrawler } = require('./cli');
 
-(async () => await runCrawler())().catch((error) => {
-  console.error(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+runCrawler().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Unexpected error: ${message}`);
   process.exit(1);
 });

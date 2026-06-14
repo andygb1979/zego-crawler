@@ -1,3 +1,5 @@
+// CLI layer: parse arguments, print usage, and run the crawler.
+
 const { Command, CommanderError, InvalidArgumentError } = require('commander');
 const crawler = require('./crawler');
 const config = require('./config');
@@ -5,12 +7,15 @@ const { CliFlag, isHelpFlag } = require('./common/cliFlags');
 
 const _getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 
+// process.exit never returns; throw so tests can stub exit and catch the flow.
 const _exitProcess = (code) => {
   process.exit(code);
   throw new Error(`process.exit:${code}`);
 };
+
 const _formatMaxPagesDefault = (maxPages) => maxPages === null ? 'unlimited' : String(maxPages);
 
+// Shells split query strings on & — rejoin fragments before Commander sees them.
 const _joinStartUrlFromArgv = (argv) => {
   let startUrl = argv[0];
   let index = 1;
@@ -80,6 +85,7 @@ Wrap URLs in quotes if they contain & or other shell-special characters.`,
 const _getUnknownArgument = (argv) =>
   argv.find((arg) => !arg.startsWith(CliFlag.OPTION_PREFIX) && arg.includes('=') && !arg.startsWith('-')) ?? null;
 
+// Map Commander option names to crawler option keys (only include flags that were passed).
 const _setCrawlerOptions = (options) => {
   const crawlerOptions = {};
 

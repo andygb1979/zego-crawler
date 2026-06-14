@@ -6,7 +6,6 @@ const CliFlag = Object.freeze({
 
 const isHelpFlag = (arg) => arg === '-h' || arg === '--help';
 
-
 module.exports = {
   CliFlag,
   isHelpFlag,

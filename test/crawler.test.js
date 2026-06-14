@@ -230,12 +230,13 @@ describe('crawler', () => {
 
     describe('when abort is called during an in-flight request', () => {
       it('should stop the crawl and report the abort', async () => {
-        fetchHandler = async (_url, options) =>
-          new Promise((_resolve, reject) => {
+        fetchHandler = async (_url, options) => {
+          await new Promise((_resolve, reject) => {
             options.signal.addEventListener('abort', () => {
               reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
             });
           });
+        };
 
         const instance = crawler.createCrawler(urls.origin, {}, {
           pageFetcher: createMockPageFetcher(async (url, options) => {

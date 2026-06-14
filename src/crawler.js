@@ -1,3 +1,8 @@
+//   1. createCrawler(baseUrl) — validate URL, create queue with the start page
+//   2. run() — fetch pages from the queue (several at once, up to concurrency limit)
+//   3. Each page — fetch, print the URL and its links, add same-host links to the queue
+//   4. When the queue is empty and nothing is in flight, run()'s promise resolves
+
 const config = require('./config');
 const linkExtractor = require('./lib/linkExtractor');
 const pageFetcher = require('./lib/pageFetcher');
@@ -6,34 +11,26 @@ const { getHttpStatusDescription, parseHttpStatusErrorMessage } = require('./com
 const { HttpHeader } = require('./common/httpConstants');
 const utils = require('./lib/utils');
 
-const _getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
+const _printPage = (pageUrl, links) => {
+  console.log(pageUrl);
+  links.forEach((link) => console.log(`  ${link}`));
+  console.log('');
+};
 
-const _getPageFailureReport = (url, message) => {
+const _printError = (url, message) => {
   const status = parseHttpStatusErrorMessage(message);
-  return status !== null
-    ? { text: `Skipped ${url}: ${getHttpStatusDescription(status)} (HTTP ${status})`, isExpected: true }
-    : { text: `Error crawling ${url}: ${message}`, isExpected: false };
+
+  if (status !== null) {
+    console.log(`Skipped ${url}: ${getHttpStatusDescription(status)} (HTTP ${status})`);
+    return;
+  }
+
+  console.error(`Error crawling ${url}: ${message}`);
 };
 
-const _consolePageReporter = {
-  reportPage: (pageUrl, links) => {
-    console.log(pageUrl);
-    links.forEach((link) => console.log(`  ${link}`));
-    console.log('');
-  },
-  reportError: (url, message) => {
-    const report = _getPageFailureReport(url, message);
-    (report.isExpected ? console.log : console.error)(report.text);
-  },
-};
-
-const _defaultScopePolicy = {
-  isInScope: (url, host) => utils.isSameHost(url, host),
-};
-
-const _fetchPage = async (state, url, pageFetcherImpl) => {
+const _fetchPage = async (state, url, fetchPage) => {
   try {
-    const response = await pageFetcherImpl.fetch(url, {
+    const response = await fetchPage(url, {
       timeoutMs: state.timeoutMs,
       acceptHeader: state.acceptHeader,
       userAgent: state.userAgent,
@@ -51,38 +48,45 @@ const _fetchPage = async (state, url, pageFetcherImpl) => {
   }
 };
 
-const _enqueueUrl = (runtime, url) => {
-  const { state, scopePolicy } = runtime;
-
+// Only same-hostname http(s) links are added. visited = already fetching; queued = waiting to be crawled
+const _addToQueue = (state, url) => {
   if (state.visited.has(url) || state.queued.has(url)) return;
-
-  if (!scopePolicy.isInScope(url, state.host)) return;
+  if (!utils.isSameHost(url, state.host)) return;
 
   state.queued.add(url);
   state.queue.push(url);
 };
 
-const _maybeFinish = (state) => {
-  if (!state.finished && state.inFlight === 0 && (state.queue.length === 0 || state.stopped)) { state.finished = true; state.doneResolve?.(); }
+const _finishIfDone = (state) => {
+  if (state.finished) return;
+  if (state.inFlight > 0) return;
+  if (state.queue.length > 0 && !state.stopped) return;
+
+  state.finished = true;
+  state.doneResolve();
 };
 
-const _processPage = async (runtime, requestedUrl) => {
-  const { state, scopePolicy, pageReporter, linkExtractorImpl, pageFetcherImpl } = runtime;
-  const response = await _fetchPage(state, requestedUrl, pageFetcherImpl);
-  const pageUrl = utils.normalizeUrl(response.url) ?? requestedUrl;
+const _crawlOneUrl = async (crawler, url) => {
+  const { state, fetchPage } = crawler;
+  const response = await _fetchPage(state, url, fetchPage);
+  const pageUrl = utils.normalizeUrl(response.url) ?? url;
 
-  if (!scopePolicy.isInScope(pageUrl, state.host)) throw new Error(`redirected off-domain to ${pageUrl}`);
+  if (!utils.isSameHost(pageUrl, state.host)) {
+    throw new Error(`redirected off-domain to ${pageUrl}`);
+  }
 
   const contentType = response.headers.get(HttpHeader.CONTENT_TYPE);
+
   if (!utils.isHtmlResponse(contentType)) {
-    pageReporter.reportPage(pageUrl, []);
+    _printPage(pageUrl, []);
     state.pagesCrawled += 1;
     return;
   }
 
   const html = await response.text();
-  const links = linkExtractorImpl.extractLinks(html, pageUrl);
-  pageReporter.reportPage(pageUrl, links);
+  const links = linkExtractor.extractLinks(html, pageUrl);
+
+  _printPage(pageUrl, links);
   state.pagesCrawled += 1;
 
   if (state.pagesCrawled >= state.maxPages) {
@@ -90,54 +94,61 @@ const _processPage = async (runtime, requestedUrl) => {
     return;
   }
 
-  links
-    .filter((link) => scopePolicy.isInScope(link, state.host))
-    .forEach((link) => _enqueueUrl(runtime, link));
+  for (const link of links) {
+    _addToQueue(state, link);
+  }
 };
 
-const _pump = (runtime) => {
-  const { state, pageReporter } = runtime;
+const _onUrlFinished = async (crawler, url) => {
+  const { state } = crawler;
 
-  while (
-    !state.stopped &&
-    state.inFlight < state.concurrency &&
-    state.queue.length > 0 &&
-    state.pagesCrawled + state.inFlight < state.maxPages
-  ) {
+  try {
+    await _crawlOneUrl(crawler, url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    _printError(url, message);
+  } finally {
+    state.inFlight -= 1;
+    _finishIfDone(state);
+    _processQueue(crawler);
+  }
+};
+
+const _hasQueueWork = (state) =>
+  !state.stopped &&
+  state.inFlight < state.concurrency &&
+  state.queue.length > 0 &&
+  state.pagesCrawled + state.inFlight < state.maxPages;
+
+const _processQueue = (crawler) => {
+  const { state } = crawler;
+
+  while (_hasQueueWork(state)) {
     const url = state.queue.shift();
-    if (!url) continue;
-
     state.queued.delete(url);
 
     if (state.visited.has(url)) continue;
 
     state.visited.add(url);
     state.inFlight += 1;
-
-    _processPage(runtime, url)
-      .catch((error) => pageReporter.reportError(url, _getErrorMessage(error)))
-      .finally(() => {
-        state.inFlight -= 1;
-        _maybeFinish(state);
-        _pump(runtime);
-      });
+    _onUrlFinished(crawler, url);
   }
 
-  _maybeFinish(state);
+  _finishIfDone(state);
 };
 
-const _createInitialState = (normalizedStart, options = {}) => {
-  const resolvedOptions = config.getResolvedCrawlerOptions(options);
-  const requestConfig = config.getCrawler().request;
+const _createState = (startUrl, options = {}) => {
+  const settings = config.getResolvedCrawlerOptions(options);
+  const request = config.getCrawler().request;
 
   const state = {
-    host: new URL(normalizedStart).hostname,
-    concurrency: resolvedOptions.concurrency,
-    timeoutMs: resolvedOptions.timeoutMs,
-    maxPages: resolvedOptions.maxPages,
-    acceptHeader: requestConfig.accept,
-    userAgent: requestConfig.userAgent,
-    redirect: requestConfig.redirect,
+    host: new URL(startUrl).hostname,
+    concurrency: settings.concurrency,
+    timeoutMs: settings.timeoutMs,
+    maxPages: settings.maxPages,
+    acceptHeader: request.accept,
+    userAgent: request.userAgent,
+    redirect: request.redirect,
     visited: new Set(),
     queued: new Set(),
     queue: [],
@@ -150,40 +161,34 @@ const _createInitialState = (normalizedStart, options = {}) => {
     donePromise: null,
   };
 
-  state.donePromise = new Promise((resolve) => (state.doneResolve = resolve));
+  state.donePromise = new Promise((resolve) => {
+    state.doneResolve = resolve;
+  });
 
   return state;
 };
 
-const _createRuntime = (startUrl, options = {}, dependencies = {}) => {
-  const startUrlValidation = utils.parseStartUrl(startUrl, 'start URL');
-  if (!startUrlValidation.valid) throw new Error(startUrlValidation.error);
+const createCrawler = (startUrl, options = {}, dependencies = {}) => {
+  const validation = utils.parseStartUrl(startUrl, 'start URL');
+  if (!validation.valid) throw new Error(validation.error);
 
-  const state = _createInitialState(startUrlValidation.url, options);
-  const runtime = {
-    state,
-    scopePolicy: dependencies.scopePolicy ?? _defaultScopePolicy,
-    pageReporter: dependencies.pageReporter ?? _consolePageReporter,
-    linkExtractorImpl: dependencies.linkExtractor ?? linkExtractor,
-    pageFetcherImpl: dependencies.pageFetcher ?? pageFetcher.createGotPageFetcher(),
+  const crawler = {
+    state: _createState(validation.url, options),
+    fetchPage: (dependencies.pageFetcher ?? pageFetcher.createGotPageFetcher()).fetch,
   };
 
-  _enqueueUrl(runtime, startUrlValidation.url);
-
-  return runtime;
-};
-
-const createCrawler = (startUrl, options = {}, dependencies = {}) => {
-  const runtime = _createRuntime(startUrl, options, dependencies);
+  _addToQueue(crawler.state, validation.url);
 
   return {
-    run: async () => (_pump(runtime), await runtime.state.donePromise),
-    abort: () => runtime.state.abortController.abort(),
+    run: () => {
+      _processQueue(crawler);
+      return crawler.state.donePromise;
+    },
+    abort: () => crawler.state.abortController.abort(),
   };
 };
 
-const crawl = async (startUrl, options = {}, dependencies = {}) =>
-  createCrawler(startUrl, options, dependencies).run();
+const crawl = (startUrl, options = {}, dependencies = {}) => createCrawler(startUrl, options, dependencies).run();
 
 module.exports = {
   createCrawler,

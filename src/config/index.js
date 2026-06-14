@@ -8,6 +8,7 @@ const getHtml = () => nodeConfig.get('html');
 
 const getLinkExtractor = () => nodeConfig.get('linkExtractor');
 
+// Merge CLI/runtime overrides with defaults from default.json.
 const getResolvedCrawlerOptions = (options = {}) => {
   const crawlerConfig = getCrawler();
 

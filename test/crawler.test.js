@@ -1,12 +1,10 @@
-import { expect } from 'chai';
-import sinon from 'sinon';
-import { Crawler, crawl } from '../src/crawler.js';
-import { createMockResponse } from './helpers/mockFetch.js';
+const { expect } = require('chai');
+const sinon = require('sinon');
+const { createCrawler, crawl } = require('../src/crawler');
+const { createMockResponse } = require('./helpers/mockFetch');
 
-describe('Crawler', () => {
-  /** @type {sinon.SinonStub} */
+describe('crawler', () => {
   let fetchStub;
-  /** @type {sinon.SinonStub} */
   let logStub;
 
   beforeEach(() => {
@@ -20,7 +18,7 @@ describe('Crawler', () => {
   });
 
   it('throws when the start URL is invalid', () => {
-    expect(() => new Crawler('not-a-url')).to.throw('Invalid start URL: not-a-url');
+    expect(() => createCrawler('not-a-url')).to.throw('Invalid start URL: not-a-url');
   });
 
   it('prints a page and follows same-host links only', async () => {
@@ -45,7 +43,7 @@ describe('Crawler', () => {
       throw new Error(`Unexpected fetch: ${url}`);
     });
 
-    await new Crawler('https://example.com/').run();
+    await createCrawler('https://example.com/').run();
 
     expect(fetchStub.callCount).to.equal(2);
     expect(logStub.firstCall.args[0]).to.equal('https://example.com/');
@@ -65,7 +63,7 @@ describe('Crawler', () => {
       }),
     );
 
-    await new Crawler('https://example.com/', { maxPages: 1 }).run();
+    await createCrawler('https://example.com/', { maxPages: 1 }).run();
 
     expect(fetchStub.callCount).to.equal(1);
   });
@@ -79,7 +77,7 @@ describe('Crawler', () => {
       }),
     );
 
-    await new Crawler('https://example.com/file.pdf').run();
+    await createCrawler('https://example.com/file.pdf').run();
 
     expect(logStub.firstCall.args[0]).to.equal('https://example.com/file.pdf');
     expect(logStub.calledWith('')).to.be.true;
@@ -88,7 +86,7 @@ describe('Crawler', () => {
   it('logs fetch failures and continues', async () => {
     fetchStub.rejects(new Error('network failure'));
 
-    await new Crawler('https://example.com/').run();
+    await createCrawler('https://example.com/').run();
 
     expect(console.error.calledOnce).to.be.true;
     expect(console.error.firstCall.args[0]).to.include('network failure');
@@ -102,7 +100,7 @@ describe('Crawler', () => {
       }),
     );
 
-    await new Crawler('https://example.com/redirect').run();
+    await createCrawler('https://example.com/redirect').run();
 
     expect(console.error.firstCall.args[0]).to.include('redirected off-domain');
   });
@@ -118,8 +116,8 @@ describe('Crawler', () => {
 
     fetchStub.onSecondCall().rejects(Object.assign(new Error('aborted'), { name: 'AbortError' }));
 
-    await new Crawler('https://example.com/').run();
-    await new Crawler('https://example.com/retry').run();
+    await createCrawler('https://example.com/').run();
+    await createCrawler('https://example.com/retry').run();
 
     expect(console.error.firstCall.args[0]).to.include('HTTP 500');
     expect(console.error.lastCall.args[0]).to.include('timed out or aborted');
@@ -136,7 +134,7 @@ describe('Crawler', () => {
       }),
     );
 
-    await new Crawler('https://example.com/').run();
+    await createCrawler('https://example.com/').run();
 
     expect(fetchStub.callCount).to.equal(1);
   });
@@ -150,10 +148,10 @@ describe('Crawler', () => {
       }),
     );
 
-    const crawler = new Crawler('https://example.com/');
-    const runPromise = crawler.run();
+    const instance = createCrawler('https://example.com/');
+    const runPromise = instance.run();
 
-    crawler.abort();
+    instance.abort();
     await runPromise;
 
     expect(fetchStub.calledOnce).to.be.true;

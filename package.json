@@ -2,22 +2,22 @@
   "name": "zego-crawler",
   "version": "1.0.0",
   "description": "Concurrent same-domain web crawler",
-  "type": "module",
   "bin": {
     "crawl": "./src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "crawl": "node src/index.js",
-    "test": "mocha 'test/**/*.test.js'",
-    "coverage": "c8 --reporter=text --reporter=html npm test",
-    "check": "c8 --check-coverage --lines 75 --functions 75 --branches 75 --statements 75 --reporter=text npm test"
+    "start": "NODE_CONFIG_DIR=./src/config node src/index.js",
+    "crawl": "NODE_CONFIG_DIR=./src/config node src/index.js",
+    "test": "NODE_CONFIG_DIR=./src/config mocha 'test/**/*.test.js'",
+    "coverage": "NODE_CONFIG_DIR=./src/config c8 --reporter=text --reporter=html npm test",
+    "check": "NODE_CONFIG_DIR=./src/config c8 --check-coverage --lines 75 --functions 75 --branches 75 --statements 75 --reporter=text npm test"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "config": "^4.4.1"
   },
   "devDependencies": {
     "c8": "^10.1.3",

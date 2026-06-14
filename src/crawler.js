@@ -1,182 +1,193 @@
-import { extractLinks } from './linkExtractor.js';
-import { isHtmlResponse, isSameHost, normalizeUrl } from './urlUtils.js';
+const config = require('config');
+const { extractLinks } = require('./linkExtractor');
+const { isHtmlResponse, isSameHost, normalizeUrl } = require('./lib/utils');
 
-const DEFAULT_CONCURRENCY = 16;
-const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_MAX_PAGES = Infinity;
+const crawler = (module.exports = {});
 
-export class Crawler {
-  #host;
-  #concurrency;
-  #timeoutMs;
-  #maxPages;
-  #visited = new Set();
-  #queued = new Set();
-  #queue = [];
-  #inFlight = 0;
-  #pagesCrawled = 0;
-  #doneResolve;
-  #donePromise;
-  #abortController = new AbortController();
-  #stopped = false;
-  #finished = false;
+const getDefaults = () => {
+  const crawlerConfig = config.has('crawler') ? config.get('crawler') : {};
 
-  constructor(startUrl, options = {}) {
-    const normalizedStart = normalizeUrl(startUrl);
-    if (!normalizedStart) {
-      throw new Error(`Invalid start URL: ${startUrl}`);
-    }
+  return {
+    concurrency: crawlerConfig.concurrency ?? 16,
+    timeoutMs: crawlerConfig.timeoutMs ?? 15_000,
+    maxPages: crawlerConfig.maxPages ?? Infinity,
+  };
+};
 
-    this.#host = new URL(normalizedStart).hostname;
-    this.#concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-    this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.#maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+const printResult = (pageUrl, links) => {
+  console.log(pageUrl);
+  links.forEach((link) => {
+    console.log(`  ${link}`);
+  });
+  console.log('');
+};
 
-    this.#enqueue(normalizedStart);
-    this.#donePromise = new Promise((resolve) => {
-      this.#doneResolve = resolve;
+const enqueueUrl = (state, url) => {
+  if (state.visited.has(url) || state.queued.has(url)) {
+    return;
+  }
+
+  if (!isSameHost(url, state.host)) {
+    return;
+  }
+
+  state.queued.add(url);
+  state.queue.push(url);
+};
+
+const maybeFinish = (state) => {
+  if (state.finished) {
+    return;
+  }
+
+  if (state.inFlight === 0 && (state.queue.length === 0 || state.stopped)) {
+    state.finished = true;
+    state.doneResolve();
+  }
+};
+
+const fetchPage = async (state, url) => {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), state.timeoutMs);
+
+  const onAbort = () => timeoutController.abort();
+  state.abortController.signal.addEventListener('abort', onAbort);
+
+  try {
+    const response = await fetch(url, {
+      signal: timeoutController.signal,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'ZegoCrawler/1.0',
+      },
+      redirect: 'follow',
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return response;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('request timed out or aborted');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    state.abortController.signal.removeEventListener('abort', onAbort);
+  }
+};
+
+const processPage = async (state, requestedUrl) => {
+  const response = await fetchPage(state, requestedUrl);
+  const pageUrl = normalizeUrl(response.url) ?? requestedUrl;
+
+  if (!isSameHost(pageUrl, state.host)) {
+    throw new Error(`redirected off-domain to ${pageUrl}`);
   }
 
-  async run() {
-    this.#pump();
-    return this.#donePromise;
+  const contentType = response.headers.get('content-type');
+  if (!isHtmlResponse(contentType)) {
+    printResult(pageUrl, []);
+    state.pagesCrawled += 1;
+    return;
   }
 
-  abort() {
-    this.#abortController.abort();
+  const html = await response.text();
+  const links = extractLinks(html, pageUrl);
+  printResult(pageUrl, links);
+  state.pagesCrawled += 1;
+
+  if (state.pagesCrawled >= state.maxPages) {
+    state.stopped = true;
+    return;
   }
 
-  #enqueue(url) {
-    if (this.#visited.has(url) || this.#queued.has(url)) {
-      return;
+  links
+    .filter((link) => isSameHost(link, state.host))
+    .forEach((link) => enqueueUrl(state, link));
+};
+
+const pump = (state) => {
+  while (
+    !state.stopped &&
+    state.inFlight < state.concurrency &&
+    state.queue.length > 0 &&
+    state.pagesCrawled + state.inFlight < state.maxPages
+  ) {
+    const url = state.queue.shift();
+    state.queued.delete(url);
+
+    if (state.visited.has(url)) {
+      continue;
     }
 
-    if (!isSameHost(url, this.#host)) {
-      return;
-    }
+    state.visited.add(url);
+    state.inFlight += 1;
 
-    this.#queued.add(url);
-    this.#queue.push(url);
-  }
-
-  #pump() {
-    while (
-      !this.#stopped &&
-      this.#inFlight < this.#concurrency &&
-      this.#queue.length > 0 &&
-      this.#pagesCrawled + this.#inFlight < this.#maxPages
-    ) {
-      const url = this.#queue.shift();
-      this.#queued.delete(url);
-
-      if (this.#visited.has(url)) {
-        continue;
-      }
-
-      this.#visited.add(url);
-      this.#inFlight += 1;
-      this.#processPage(url)
-        .catch((error) => {
-          console.error(`Error crawling ${url}: ${error.message}`);
-        })
-        .finally(() => {
-          this.#inFlight -= 1;
-          this.#maybeFinish();
-          this.#pump();
-        });
-    }
-
-    this.#maybeFinish();
-  }
-
-  #maybeFinish() {
-    if (this.#finished) {
-      return;
-    }
-
-    if (this.#inFlight === 0 && (this.#queue.length === 0 || this.#stopped)) {
-      this.#finished = true;
-      this.#doneResolve();
-    }
-  }
-
-  async #processPage(requestedUrl) {
-    const response = await this.#fetch(requestedUrl);
-    const pageUrl = normalizeUrl(response.url) ?? requestedUrl;
-
-    if (!isSameHost(pageUrl, this.#host)) {
-      throw new Error(`redirected off-domain to ${pageUrl}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!isHtmlResponse(contentType)) {
-      this.#printResult(pageUrl, []);
-      this.#pagesCrawled += 1;
-      return;
-    }
-
-    const html = await response.text();
-    const links = extractLinks(html, pageUrl);
-    this.#printResult(pageUrl, links);
-    this.#pagesCrawled += 1;
-
-    if (this.#pagesCrawled >= this.#maxPages) {
-      this.#stopped = true;
-      return;
-    }
-
-    for (const link of links) {
-      if (isSameHost(link, this.#host)) {
-        this.#enqueue(link);
-      }
-    }
-  }
-
-  async #fetch(url) {
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeoutMs);
-
-    const onAbort = () => timeoutController.abort();
-    this.#abortController.signal.addEventListener('abort', onAbort);
-
-    try {
-      const response = await fetch(url, {
-        signal: timeoutController.signal,
-        headers: {
-          Accept: 'text/html,application/xhtml+xml',
-          'User-Agent': 'ZegoCrawler/1.0',
-        },
-        redirect: 'follow',
+    processPage(state, url)
+      .catch((error) => {
+        console.error(`Error crawling ${url}: ${error.message}`);
+      })
+      .finally(() => {
+        state.inFlight -= 1;
+        maybeFinish(state);
+        pump(state);
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      return response;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('request timed out or aborted');
-      }
-
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-      this.#abortController.signal.removeEventListener('abort', onAbort);
-    }
   }
 
-  #printResult(pageUrl, links) {
-    console.log(pageUrl);
-    for (const link of links) {
-      console.log(`  ${link}`);
-    }
-    console.log('');
-  }
-}
+  maybeFinish(state);
+};
 
-export async function crawl(startUrl, options) {
-  const crawler = new Crawler(startUrl, options);
-  await crawler.run();
-}
+const createInitialState = (startUrl, options = {}) => {
+  const normalizedStart = normalizeUrl(startUrl);
+  if (!normalizedStart) {
+    throw new Error(`Invalid start URL: ${startUrl}`);
+  }
+
+  const defaults = getDefaults();
+  const state = {
+    host: new URL(normalizedStart).hostname,
+    concurrency: options.concurrency ?? defaults.concurrency,
+    timeoutMs: options.timeoutMs ?? defaults.timeoutMs,
+    maxPages: options.maxPages ?? defaults.maxPages,
+    visited: new Set(),
+    queued: new Set(),
+    queue: [],
+    inFlight: 0,
+    pagesCrawled: 0,
+    stopped: false,
+    finished: false,
+    abortController: new AbortController(),
+    doneResolve: null,
+    donePromise: null,
+  };
+
+  enqueueUrl(state, normalizedStart);
+  state.donePromise = new Promise((resolve) => {
+    state.doneResolve = resolve;
+  });
+
+  return state;
+};
+
+crawler.createCrawler = (startUrl, options = {}) => {
+  const state = createInitialState(startUrl, options);
+
+  return {
+    run: () => {
+      pump(state);
+      return state.donePromise;
+    },
+    abort: () => {
+      state.abortController.abort();
+    },
+  };
+};
+
+crawler.crawl = async (startUrl, options = {}) => {
+  const instance = crawler.createCrawler(startUrl, options);
+  await instance.run();
+};

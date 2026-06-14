@@ -1,10 +1,9 @@
-import * as cheerio from 'cheerio';
-import { normalizeUrl } from './urlUtils.js';
+const cheerio = require('cheerio');
+const { normalizeUrl } = require('./lib/utils');
 
-/**
- * Extract and normalise hyperlinks from anchor tags.
- */
-export function extractLinks(html, pageUrl) {
+const linkExtractor = (module.exports = {});
+
+linkExtractor.extractLinks = (html, pageUrl) => {
   const $ = cheerio.load(html);
   const links = new Set();
 
@@ -21,4 +20,4 @@ export function extractLinks(html, pageUrl) {
   });
 
   return [...links].sort();
-}
+};

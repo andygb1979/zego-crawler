@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import { crawl } from './crawler.js';
-import { normalizeUrl } from './urlUtils.js';
+const { crawl } = require('./crawler');
+const { normalizeUrl } = require('./lib/utils');
 
-export function printUsage() {
+const main = (module.exports = {});
+
+main.printUsage = () => {
   console.error(`Usage: node src/index.js <base-url> [options]
 
 Options:
@@ -16,11 +16,11 @@ Options:
 Example:
   node src/index.js https://example.com
   npm start -- https://example.com --concurrency 32`);
-}
+};
 
-export function parseArgs(argv) {
+main.parseArgs = (argv) => {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) {
-    printUsage();
+    main.printUsage();
     process.exit(argv.length === 0 ? 1 : 0);
   }
 
@@ -38,17 +38,17 @@ export function parseArgs(argv) {
       options.maxPages = Number(argv[++index]);
     } else {
       console.error(`Unknown option: ${arg}`);
-      printUsage();
+      main.printUsage();
       process.exit(1);
     }
   }
 
   return { startUrl, options };
-}
+};
 
-export async function main(argv = process.argv.slice(2), dependencies = {}) {
+main.main = async (argv = process.argv.slice(2), dependencies = {}) => {
   const runCrawl = dependencies.crawl ?? crawl;
-  const { startUrl, options } = parseArgs(argv);
+  const { startUrl, options } = main.parseArgs(argv);
 
   if (!normalizeUrl(startUrl)) {
     console.error(`Invalid base URL: ${startUrl}`);
@@ -61,12 +61,8 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
     console.error(error.message);
     process.exit(1);
   }
-}
+};
 
-const isMainModule =
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
-
-if (isMainModule) {
-  main();
+if (require.main === module) {
+  main.main();
 }

@@ -1,7 +1,7 @@
-import { expect } from 'chai';
-import { isHtmlResponse, isSameHost, normalizeUrl } from '../src/urlUtils.js';
+const { expect } = require('chai');
+const { isHtmlResponse, isSameHost, normalizeUrl } = require('../src/lib/utils');
 
-describe('urlUtils', () => {
+describe('utils', () => {
   describe('normalizeUrl', () => {
     it('normalises absolute URLs and strips fragments', () => {
       expect(normalizeUrl('https://example.com/page#section')).to.equal(

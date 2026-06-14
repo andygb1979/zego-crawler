@@ -1,10 +1,8 @@
 const FETCHABLE_PROTOCOLS = new Set(['http:', 'https:']);
 
-/**
- * Normalise a URL for deduplication and consistent output.
- * Strips fragments and trailing slashes (except on origin root).
- */
-export function normalizeUrl(rawUrl, baseUrl) {
+const utils = (module.exports = {});
+
+utils.normalizeUrl = (rawUrl, baseUrl) => {
   let parsed;
 
   try {
@@ -24,21 +22,21 @@ export function normalizeUrl(rawUrl, baseUrl) {
   }
 
   return parsed.href;
-}
+};
 
-export function isSameHost(url, host) {
+utils.isSameHost = (url, host) => {
   try {
     return new URL(url).hostname === host;
   } catch {
     return false;
   }
-}
+};
 
-export function isHtmlResponse(contentType) {
+utils.isHtmlResponse = (contentType) => {
   if (!contentType) {
     return true;
   }
 
   const mediaType = contentType.split(';')[0].trim().toLowerCase();
   return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
-}
+};

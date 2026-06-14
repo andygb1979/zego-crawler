@@ -208,10 +208,4 @@ The project was developed on **macOS** using the following setup. These are the 
 | **[Homebrew](https://brew.sh/)** | macOS package manager — used to install CLI tools (including Node.js or helpers such as [nvm](https://github.com/nvm-sh/nvm)) |
 | **Git / [GitHub](https://github.com/)** | Version control, pull requests, and CI via GitHub Actions |
 
-**Typical workflow:** edit in Cursor → run `npm test` in iTerm2 → commit and push to GitHub. AI suggestions were treated as drafts: design choices, simplifications, and final wording were reviewed manually before landing in the repo.
-
----
-
-## License
-
-MIT
+**Typical workflow:** edit in Cursor → run `npm test` in iTerm2 → commit and push to GitHub. AI suggestions were treated as drafts: design choices, simplifications, and final wording along with edits were reviewed manually before landing in the repo.

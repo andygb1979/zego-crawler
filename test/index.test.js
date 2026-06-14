@@ -1,8 +1,8 @@
-import { expect } from 'chai';
-import sinon from 'sinon';
-import { main, parseArgs, printUsage } from '../src/index.js';
-import { normalizeUrl } from '../src/urlUtils.js';
-import { createMockResponse } from './helpers/mockFetch.js';
+const { expect } = require('chai');
+const sinon = require('sinon');
+const { main, parseArgs, printUsage } = require('../src/index');
+const { normalizeUrl } = require('../src/lib/utils');
+const { createMockResponse } = require('./helpers/mockFetch');
 
 describe('index', () => {
   afterEach(() => {

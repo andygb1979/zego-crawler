@@ -1,0 +1,6 @@
+{
+  "crawler": {
+    "concurrency": 16,
+    "timeoutMs": 15000
+  }
+}

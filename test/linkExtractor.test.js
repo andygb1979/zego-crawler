@@ -1,5 +1,5 @@
-import { expect } from 'chai';
-import { extractLinks } from '../src/linkExtractor.js';
+const { expect } = require('chai');
+const { extractLinks } = require('../src/linkExtractor');
 
 describe('linkExtractor', () => {
   it('extracts and normalises anchor links', () => {

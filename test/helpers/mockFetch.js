@@ -1,23 +1,23 @@
-export function createMockResponse({
+const mockFetch = (module.exports = {});
+
+mockFetch.createMockResponse = ({
   url,
   status = 200,
   ok = true,
   contentType = 'text/html; charset=utf-8',
   body = '',
-}) {
-  return {
-    ok,
-    status,
-    url,
-    headers: {
-      get(name) {
-        if (name.toLowerCase() === 'content-type') {
-          return contentType;
-        }
+}) => ({
+  ok,
+  status,
+  url,
+  headers: {
+    get(name) {
+      if (name.toLowerCase() === 'content-type') {
+        return contentType;
+      }
 
-        return null;
-      },
+      return null;
     },
-    text: async () => body,
-  };
-}
+  },
+  text: async () => body,
+});

@@ -1,0 +1,31 @@
+{
+  "urls": {
+    "origin": "https://example.com/",
+    "originWithoutSlash": "https://example.com",
+    "host": "example.com",
+    "about": "https://example.com/about",
+    "contact": "https://example.com/contact",
+    "path": "https://example.com/path",
+    "external": "https://other.com/",
+    "offDomainRedirect": "https://other.com/landing",
+    "invalid": "not-a-url",
+    "pdf": "https://example.com/file.pdf",
+    "redirect": "https://example.com/redirect",
+    "retry": "https://example.com/retry",
+    "dup": "https://example.com/dup"
+  },
+  "contentTypes": {
+    "html": "text/html; charset=utf-8",
+    "xhtml": "application/xhtml+xml",
+    "pdf": "application/pdf",
+    "json": "application/json",
+    "png": "image/png"
+  },
+  "cli": {
+    "sampleOptions": {
+      "concurrency": 4,
+      "timeoutMs": 1000,
+      "maxPages": 10
+    }
+  }
+}

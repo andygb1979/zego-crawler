@@ -1,0 +1,22 @@
+{
+  "crawler": {
+    "concurrency": 16,
+    "timeoutMs": 15000,
+    "maxPages": null,
+    "request": {
+      "accept": "text/html,application/xhtml+xml",
+      "userAgent": "ZegoCrawler/1.0",
+      "redirect": "follow"
+    }
+  },
+  "urls": {
+    "fetchableProtocols": ["http:", "https:"]
+  },
+  "html": {
+    "treatMissingContentTypeAsHtml": true,
+    "mediaTypes": ["text/html", "application/xhtml+xml"]
+  },
+  "linkExtractor": {
+    "selector": "a[href]"
+  }
+}

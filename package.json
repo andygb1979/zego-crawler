@@ -8,12 +8,39 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "crawl": "node src/index.js"
+    "crawl": "node src/index.js",
+    "test": "mocha 'test/**/*.test.js'",
+    "coverage": "c8 --reporter=text --reporter=html npm test",
+    "check": "c8 --check-coverage --lines 75 --functions 75 --branches 75 --statements 75 --reporter=text npm test"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3",
+    "chai": "^4.5.0",
+    "mocha": "^11.1.0",
+    "sinon": "^19.0.2"
+  },
+  "c8": {
+    "all": true,
+    "include": [
+      "src/**/*.js"
+    ],
+    "exclude": [
+      "test/**"
+    ],
+    "check-coverage": false,
+    "lines": 75,
+    "functions": 75,
+    "branches": 75,
+    "statements": 75,
+    "reporter": [
+      "text",
+      "html"
+    ]
   }
 }

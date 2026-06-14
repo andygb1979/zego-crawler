@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { crawl } from './crawler.js';
 import { normalizeUrl } from './urlUtils.js';
 
-function printUsage() {
+export function printUsage() {
   console.error(`Usage: node src/index.js <base-url> [options]
 
 Options:
@@ -16,7 +18,7 @@ Example:
   npm start -- https://example.com --concurrency 32`);
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) {
     printUsage();
     process.exit(argv.length === 0 ? 1 : 0);
@@ -44,8 +46,9 @@ function parseArgs(argv) {
   return { startUrl, options };
 }
 
-async function main() {
-  const { startUrl, options } = parseArgs(process.argv.slice(2));
+export async function main(argv = process.argv.slice(2), dependencies = {}) {
+  const runCrawl = dependencies.crawl ?? crawl;
+  const { startUrl, options } = parseArgs(argv);
 
   if (!normalizeUrl(startUrl)) {
     console.error(`Invalid base URL: ${startUrl}`);
@@ -53,11 +56,17 @@ async function main() {
   }
 
   try {
-    await crawl(startUrl, options);
+    await runCrawl(startUrl, options);
   } catch (error) {
     console.error(error.message);
     process.exit(1);
   }
 }
 
-main();
+const isMainModule =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isMainModule) {
+  main();
+}

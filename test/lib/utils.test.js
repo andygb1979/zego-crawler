@@ -69,19 +69,15 @@ describe('lib/utils', () => {
         const result = utils.parseStartUrl(urls.invalid);
 
         expect(result.valid).to.be.false;
-        if (!result.valid) {
-          expect(result.error).to.include(`Invalid base URL: ${urls.invalid}`);
-          expect(result.error).to.include('Provide a full http:// or https:// URL');
-        }
+        expect(result.error).to.include(`Invalid base URL: ${urls.invalid}`);
+        expect(result.error).to.include('Provide a full http:// or https:// URL');
       });
 
       it('should use the provided label in the error message', () => {
         const result = utils.parseStartUrl(urls.invalid, 'start URL');
 
         expect(result.valid).to.be.false;
-        if (!result.valid) {
-          expect(result.error).to.include(`Invalid start URL: ${urls.invalid}`);
-        }
+        expect(result.error).to.include(`Invalid start URL: ${urls.invalid}`);
       });
     });
   });

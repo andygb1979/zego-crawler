@@ -5,7 +5,7 @@ const { HttpHeader, RedirectMode } = require('../../src/common/httpConstants');
 const GOT_MODULE_PATH = require.resolve('got');
 const PAGE_FETCHER_PATH = require.resolve('../../src/lib/pageFetcher');
 
-const loadPageFetcherWithGotStub = (gotStub) => {
+const _loadPageFetcherWithGotStub = (gotStub) => {
   require.cache[GOT_MODULE_PATH] = {
     id: GOT_MODULE_PATH,
     filename: GOT_MODULE_PATH,
@@ -39,7 +39,7 @@ describe('lib/pageFetcher', () => {
           body: '<html></html>',
         });
 
-        const { createGotPageFetcher } = loadPageFetcherWithGotStub(gotStub);
+        const { createGotPageFetcher } = _loadPageFetcherWithGotStub(gotStub);
         const response = await createGotPageFetcher().fetch('https://example.com/', {
           timeoutMs: 1000,
           acceptHeader: 'text/html',
@@ -66,7 +66,7 @@ describe('lib/pageFetcher', () => {
           body: 'not found',
         });
 
-        const { createGotPageFetcher } = loadPageFetcherWithGotStub(gotStub);
+        const { createGotPageFetcher } = _loadPageFetcherWithGotStub(gotStub);
         const response = await createGotPageFetcher().fetch('https://example.com/missing', {
           timeoutMs: 1000,
           acceptHeader: 'text/html',
@@ -84,7 +84,7 @@ describe('lib/pageFetcher', () => {
       it('should throw a readable timeout or abort message', async () => {
         gotStub.rejects(Object.assign(new Error('aborted'), { name: 'AbortError' }));
 
-        const { createGotPageFetcher } = loadPageFetcherWithGotStub(gotStub);
+        const { createGotPageFetcher } = _loadPageFetcherWithGotStub(gotStub);
 
         try {
           await createGotPageFetcher().fetch('https://example.com/', {
@@ -107,7 +107,7 @@ describe('lib/pageFetcher', () => {
         const networkError = new Error('network failure');
         gotStub.rejects(networkError);
 
-        const { createGotPageFetcher } = loadPageFetcherWithGotStub(gotStub);
+        const { createGotPageFetcher } = _loadPageFetcherWithGotStub(gotStub);
 
         try {
           await createGotPageFetcher().fetch('https://example.com/', {

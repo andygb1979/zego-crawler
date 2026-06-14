@@ -2,19 +2,19 @@ const { expect } = require('chai');
 const sinon = require('sinon');
 const { CliFlag } = require('../src/common/cliFlags');
 const testDefaults = require('./helpers/defaults');
-const cli = require('../src/index');
+const cli = require('../src/cli');
 
 const { urls, cli: cliDefaults } = testDefaults;
 const { sampleOptions } = cliDefaults;
 
-const expectProcessExit = (action, code) => {
+const _expectProcessExit = (action, code) => {
   const exitStub = sinon.stub(process, 'exit');
 
   expect(action).to.throw(`process.exit:${code}`);
   expect(exitStub.calledWith(code)).to.be.true;
 };
 
-const expectAsyncProcessExit = async (action, code) => {
+const _expectAsyncProcessExit = async (action, code) => {
   const exitStub = sinon.stub(process, 'exit');
 
   try {
@@ -28,7 +28,7 @@ const expectAsyncProcessExit = async (action, code) => {
   expect(exitStub.calledWith(code)).to.be.true;
 };
 
-describe('index', () => {
+describe('cli', () => {
   afterEach(() => {
     sinon.restore();
   });
@@ -57,7 +57,7 @@ describe('index', () => {
       it('should print usage and exit with code 1', () => {
         const errorStub = sinon.stub(console, 'error');
 
-        expectProcessExit(() => cli.parseArgs([]), 1);
+        _expectProcessExit(() => cli.parseArgs([]), 1);
 
         expect(errorStub.called).to.be.true;
       });
@@ -67,7 +67,7 @@ describe('index', () => {
       it('should print usage and exit with code 0 for --help', () => {
         const errorStub = sinon.stub(console, 'error');
 
-        expectProcessExit(() => cli.parseArgs([CliFlag.HELP_LONG]), 0);
+        _expectProcessExit(() => cli.parseArgs([CliFlag.HELP_LONG]), 0);
 
         expect(errorStub.called).to.be.true;
       });
@@ -75,7 +75,7 @@ describe('index', () => {
       it('should print usage and exit with code 0 for -h', () => {
         const errorStub = sinon.stub(console, 'error');
 
-        expectProcessExit(() => cli.parseArgs([CliFlag.HELP_SHORT]), 0);
+        _expectProcessExit(() => cli.parseArgs([CliFlag.HELP_SHORT]), 0);
 
         expect(errorStub.called).to.be.true;
       });
@@ -85,7 +85,7 @@ describe('index', () => {
       it('should print usage and exit with code 1', () => {
         const errorStub = sinon.stub(console, 'error');
 
-        expectProcessExit(() => cli.parseArgs([urls.originWithoutSlash, '--unknown']), 1);
+        _expectProcessExit(() => cli.parseArgs([urls.originWithoutSlash, '--unknown']), 1);
 
         expect(errorStub.called).to.be.true;
       });
@@ -113,7 +113,7 @@ describe('index', () => {
       it('should print guidance about quoting URLs', () => {
         const errorStub = sinon.stub(console, 'error');
 
-        expectProcessExit(
+        _expectProcessExit(
           () =>
             cli.parseArgs([
               urls.originWithoutSlash,
@@ -142,14 +142,14 @@ describe('index', () => {
     });
   });
 
-  describe('main', () => {
+  describe('runCrawler', () => {
     describe('when the start URL is invalid', () => {
       it('should print an error and exit with code 1', async () => {
         const errorStub = sinon.stub(console, 'error');
 
-        await expectAsyncProcessExit(() => cli.main([urls.invalid]), 1);
+        await _expectAsyncProcessExit(() => cli.runCrawler([urls.invalid]), 1);
 
-        expect(errorStub.firstCall.args[0]).to.include(`Invalid base URL: ${urls.invalid}`);
+        expect(errorStub.firstCall.args[0]).to.include(`Invalid start URL: ${urls.invalid}`);
       });
     });
 
@@ -158,10 +158,10 @@ describe('index', () => {
         const crawlStub = sinon.stub().resolves();
         sinon.stub(console, 'log');
 
-        await cli.main([urls.originWithoutSlash, '--max-pages', '1'], { crawl: crawlStub });
+        await cli.runCrawler([urls.originWithoutSlash, '--max-pages', '1'], { crawl: crawlStub });
 
         expect(crawlStub.calledOnce).to.be.true;
-        expect(crawlStub.firstCall.args[0]).to.equal(urls.origin);
+        expect(crawlStub.firstCall.args[0]).to.equal(urls.originWithoutSlash);
         expect(crawlStub.firstCall.args[1]).to.deep.equal({ maxPages: 1 });
       });
     });
@@ -171,8 +171,8 @@ describe('index', () => {
         const errorStub = sinon.stub(console, 'error');
         const crawlStub = sinon.stub().rejects(new Error('boom'));
 
-        await expectAsyncProcessExit(
-          () => cli.main([urls.originWithoutSlash], { crawl: crawlStub }),
+        await _expectAsyncProcessExit(
+          () => cli.runCrawler([urls.originWithoutSlash], { crawl: crawlStub }),
           1,
         );
 

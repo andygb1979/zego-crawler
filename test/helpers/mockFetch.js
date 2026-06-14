@@ -13,11 +13,7 @@ const createMockResponse = ({
   url,
   headers: {
     get(name) {
-      if (name.toLowerCase() === HttpHeader.CONTENT_TYPE) {
-        return contentType;
-      }
-
-      return null;
+      return name.toLowerCase() === HttpHeader.CONTENT_TYPE ? contentType : null;
     },
   },
   text: async () => body,
@@ -25,9 +21,7 @@ const createMockResponse = ({
 
 const createMockPageFetcher = (handler) => ({
   fetch: async (url, options) => {
-    if (options.signal.aborted) {
-      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
-    }
+    if (options.signal.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
 
     return handler(url, options);
   },

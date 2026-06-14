@@ -6,50 +6,32 @@ const { getHttpStatusDescription, parseHttpStatusErrorMessage } = require('./com
 const { HttpHeader } = require('./common/httpConstants');
 const utils = require('./lib/utils');
 
-const getErrorMessage = (error) =>
-  error instanceof Error ? error.message : String(error);
+const _getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 
-const getPageFailureReport = (url, message) => {
+const _getPageFailureReport = (url, message) => {
   const status = parseHttpStatusErrorMessage(message);
-
-  if (status !== null) {
-    return {
-      text: `Skipped ${url}: ${getHttpStatusDescription(status)} (HTTP ${status})`,
-      isExpected: true,
-    };
-  }
-
-  return {
-    text: `Error crawling ${url}: ${message}`,
-    isExpected: false,
-  };
+  return status !== null
+    ? { text: `Skipped ${url}: ${getHttpStatusDescription(status)} (HTTP ${status})`, isExpected: true }
+    : { text: `Error crawling ${url}: ${message}`, isExpected: false };
 };
 
-const consolePageReporter = {
+const _consolePageReporter = {
   reportPage: (pageUrl, links) => {
     console.log(pageUrl);
-    links.forEach((link) => {
-      console.log(`  ${link}`);
-    });
+    links.forEach((link) => console.log(`  ${link}`));
     console.log('');
   },
   reportError: (url, message) => {
-    const report = getPageFailureReport(url, message);
-
-    if (report.isExpected) {
-      console.log(report.text);
-      return;
-    }
-
-    console.error(report.text);
+    const report = _getPageFailureReport(url, message);
+    (report.isExpected ? console.log : console.error)(report.text);
   },
 };
 
-const defaultScopePolicy = {
+const _defaultScopePolicy = {
   isInScope: (url, host) => utils.isSameHost(url, host),
 };
 
-const fetchPage = async (state, url, pageFetcherImpl) => {
+const _fetchPage = async (state, url, pageFetcherImpl) => {
   try {
     const response = await pageFetcherImpl.fetch(url, {
       timeoutMs: state.timeoutMs,
@@ -59,54 +41,37 @@ const fetchPage = async (state, url, pageFetcherImpl) => {
       signal: state.abortController.signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     return response;
   } catch (error) {
-    if (isAbortOrTimeout(error)) {
-      throw new Error('request timed out or aborted');
-    }
+    if (isAbortOrTimeout(error)) throw new Error('request timed out or aborted');
 
     throw error;
   }
 };
 
-const enqueueUrl = (runtime, url) => {
+const _enqueueUrl = (runtime, url) => {
   const { state, scopePolicy } = runtime;
 
-  if (state.visited.has(url) || state.queued.has(url)) {
-    return;
-  }
+  if (state.visited.has(url) || state.queued.has(url)) return;
 
-  if (!scopePolicy.isInScope(url, state.host)) {
-    return;
-  }
+  if (!scopePolicy.isInScope(url, state.host)) return;
 
   state.queued.add(url);
   state.queue.push(url);
 };
 
-const maybeFinish = (state) => {
-  if (state.finished) {
-    return;
-  }
-
-  if (state.inFlight === 0 && (state.queue.length === 0 || state.stopped)) {
-    state.finished = true;
-    state.doneResolve?.();
-  }
+const _maybeFinish = (state) => {
+  if (!state.finished && state.inFlight === 0 && (state.queue.length === 0 || state.stopped)) { state.finished = true; state.doneResolve?.(); }
 };
 
-const processPage = async (runtime, requestedUrl) => {
+const _processPage = async (runtime, requestedUrl) => {
   const { state, scopePolicy, pageReporter, linkExtractorImpl, pageFetcherImpl } = runtime;
-  const response = await fetchPage(state, requestedUrl, pageFetcherImpl);
+  const response = await _fetchPage(state, requestedUrl, pageFetcherImpl);
   const pageUrl = utils.normalizeUrl(response.url) ?? requestedUrl;
 
-  if (!scopePolicy.isInScope(pageUrl, state.host)) {
-    throw new Error(`redirected off-domain to ${pageUrl}`);
-  }
+  if (!scopePolicy.isInScope(pageUrl, state.host)) throw new Error(`redirected off-domain to ${pageUrl}`);
 
   const contentType = response.headers.get(HttpHeader.CONTENT_TYPE);
   if (!utils.isHtmlResponse(contentType)) {
@@ -127,10 +92,10 @@ const processPage = async (runtime, requestedUrl) => {
 
   links
     .filter((link) => scopePolicy.isInScope(link, state.host))
-    .forEach((link) => enqueueUrl(runtime, link));
+    .forEach((link) => _enqueueUrl(runtime, link));
 };
 
-const pump = (runtime) => {
+const _pump = (runtime) => {
   const { state, pageReporter } = runtime;
 
   while (
@@ -140,34 +105,28 @@ const pump = (runtime) => {
     state.pagesCrawled + state.inFlight < state.maxPages
   ) {
     const url = state.queue.shift();
-    if (!url) {
-      continue;
-    }
+    if (!url) continue;
 
     state.queued.delete(url);
 
-    if (state.visited.has(url)) {
-      continue;
-    }
+    if (state.visited.has(url)) continue;
 
     state.visited.add(url);
     state.inFlight += 1;
 
-    processPage(runtime, url)
-      .catch((error) => {
-        pageReporter.reportError(url, getErrorMessage(error));
-      })
+    _processPage(runtime, url)
+      .catch((error) => pageReporter.reportError(url, _getErrorMessage(error)))
       .finally(() => {
         state.inFlight -= 1;
-        maybeFinish(state);
-        pump(runtime);
+        _maybeFinish(state);
+        _pump(runtime);
       });
   }
 
-  maybeFinish(state);
+  _maybeFinish(state);
 };
 
-const createInitialState = (normalizedStart, options = {}) => {
+const _createInitialState = (normalizedStart, options = {}) => {
   const resolvedOptions = config.getResolvedCrawlerOptions(options);
   const requestConfig = config.getCrawler().request;
 
@@ -191,51 +150,40 @@ const createInitialState = (normalizedStart, options = {}) => {
     donePromise: null,
   };
 
-  state.donePromise = new Promise((resolve) => {
-    state.doneResolve = resolve;
-  });
+  state.donePromise = new Promise((resolve) => (state.doneResolve = resolve));
 
   return state;
 };
 
-const createRuntime = (startUrl, options = {}, dependencies = {}) => {
+const _createRuntime = (startUrl, options = {}, dependencies = {}) => {
   const startUrlValidation = utils.parseStartUrl(startUrl, 'start URL');
-  if (!startUrlValidation.valid) {
-    throw new Error(startUrlValidation.error);
-  }
+  if (!startUrlValidation.valid) throw new Error(startUrlValidation.error);
 
-  const state = createInitialState(startUrlValidation.url, options);
+  const state = _createInitialState(startUrlValidation.url, options);
   const runtime = {
     state,
-    scopePolicy: dependencies.scopePolicy ?? defaultScopePolicy,
-    pageReporter: dependencies.pageReporter ?? consolePageReporter,
+    scopePolicy: dependencies.scopePolicy ?? _defaultScopePolicy,
+    pageReporter: dependencies.pageReporter ?? _consolePageReporter,
     linkExtractorImpl: dependencies.linkExtractor ?? linkExtractor,
     pageFetcherImpl: dependencies.pageFetcher ?? pageFetcher.createGotPageFetcher(),
   };
 
-  enqueueUrl(runtime, startUrlValidation.url);
+  _enqueueUrl(runtime, startUrlValidation.url);
 
   return runtime;
 };
 
 const createCrawler = (startUrl, options = {}, dependencies = {}) => {
-  const runtime = createRuntime(startUrl, options, dependencies);
+  const runtime = _createRuntime(startUrl, options, dependencies);
 
   return {
-    run: async () => {
-      pump(runtime);
-      await runtime.state.donePromise;
-    },
-    abort: () => {
-      runtime.state.abortController.abort();
-    },
+    run: async () => (_pump(runtime), await runtime.state.donePromise),
+    abort: () => runtime.state.abortController.abort(),
   };
 };
 
-const crawl = async (startUrl, options = {}, dependencies = {}) => {
-  const instance = createCrawler(startUrl, options, dependencies);
-  await instance.run();
-};
+const crawl = async (startUrl, options = {}, dependencies = {}) =>
+  createCrawler(startUrl, options, dependencies).run();
 
 module.exports = {
   createCrawler,

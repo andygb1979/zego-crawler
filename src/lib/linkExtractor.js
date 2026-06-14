@@ -9,14 +9,10 @@ const extractLinks = (html, pageUrl) => {
 
   $(selector).each((_index, element) => {
     const rawValue = $(element).attr('href');
-    if (!rawValue) {
-      return;
-    }
+    if (!rawValue) return;
 
     const normalized = utils.normalizeUrl(rawValue.trim(), pageUrl);
-    if (normalized) {
-      links.add(normalized);
-    }
+    if (normalized) links.add(normalized);
   });
 
   return [...links].sort();

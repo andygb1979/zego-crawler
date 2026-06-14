@@ -3,22 +3,17 @@ const got = gotModule.default ?? gotModule;
 const { isAbortOrTimeout } = require('../common/fetchErrors');
 const { RedirectMode } = require('../common/httpConstants');
 
-const toPageResponse = (response) => {
-  const getHeader = (name) => {
+const _toPageResponse = (response) => {
+  const _getHeader = (name) => {
     const value = response.headers[name.toLowerCase()];
-
-    if (value === undefined) {
-      return null;
-    }
-
-    return Array.isArray(value) ? (value[0] ?? null) : String(value);
+    return value === undefined ? null : Array.isArray(value) ? (value[0] ?? null) : String(value);
   };
 
   return {
     ok: response.statusCode >= 200 && response.statusCode < 300,
     status: response.statusCode,
     url: response.url,
-    headers: { get: getHeader },
+    headers: { get: _getHeader },
     text: async () => response.body,
   };
 };
@@ -37,12 +32,9 @@ const createGotPageFetcher = () => ({
         signal: options.signal,
       });
 
-      return toPageResponse(response);
+      return _toPageResponse(response);
     } catch (error) {
-      if (isAbortOrTimeout(error)) {
-        throw new Error('request timed out or aborted');
-      }
-
+      if (isAbortOrTimeout(error)) throw new Error('request timed out or aborted');
       throw error;
     }
   },

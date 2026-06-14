@@ -1,6 +1,6 @@
 const config = require('../config');
 
-const normalizeUrlWithOptions = (rawUrl, baseUrl, options) => {
+const _normalizeUrlWithOptions = (rawUrl, baseUrl, options) => {
   let parsed;
 
   try {
@@ -10,18 +10,28 @@ const normalizeUrlWithOptions = (rawUrl, baseUrl, options) => {
   }
 
   const fetchableProtocols = new Set(options.fetchableProtocols);
-  if (!fetchableProtocols.has(parsed.protocol)) {
-    return null;
-  }
+  if (!fetchableProtocols.has(parsed.protocol)) return null;
 
   parsed.hash = '';
 
-  if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) {
-    parsed.pathname = parsed.pathname.slice(0, -1);
-  }
+  if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) parsed.pathname = parsed.pathname.slice(0, -1);
 
   return parsed.href;
 };
+
+const _isHtmlResponseWithOptions = (contentType, options) =>
+  !contentType
+    ? options.treatMissingContentTypeAsHtml
+    : options.mediaTypes.includes(contentType.split(';')[0].trim().toLowerCase());
+
+const _formatInvalidStartUrlError = (rawUrl, label = 'base URL') =>
+  `Invalid ${label}: ${rawUrl}\n` +
+  'Provide a full http:// or https:// URL. Wrap it in quotes if it contains & or spaces.';
+
+const normalizeUrl = (rawUrl, baseUrl) =>
+  _normalizeUrlWithOptions(rawUrl, baseUrl, {
+    fetchableProtocols: config.getUrls().fetchableProtocols,
+  });
 
 const isSameHost = (url, host) => {
   try {
@@ -31,35 +41,12 @@ const isSameHost = (url, host) => {
   }
 };
 
-const isHtmlResponseWithOptions = (contentType, options) => {
-  if (!contentType) {
-    return options.treatMissingContentTypeAsHtml;
-  }
+const isHtmlResponse = (contentType) => _isHtmlResponseWithOptions(contentType, config.getHtml());
 
-  const mediaType = contentType.split(';')[0].trim().toLowerCase();
-  return options.mediaTypes.includes(mediaType);
-};
-
-const formatInvalidStartUrlError = (rawUrl, label = 'base URL') =>
-  `Invalid ${label}: ${rawUrl}\n` +
-  'Provide a full http:// or https:// URL. Wrap it in quotes if it contains & or spaces.';
-
-const normalizeUrl = (rawUrl, baseUrl) =>
-  normalizeUrlWithOptions(rawUrl, baseUrl, {
-    fetchableProtocols: config.getUrls().fetchableProtocols,
-  });
-
-const isHtmlResponse = (contentType) =>
-  isHtmlResponseWithOptions(contentType, config.getHtml());
-
-const parseStartUrl = (rawUrl, label = 'base URL') => {
-  const url = normalizeUrl(rawUrl.trim());
-  if (!url) {
-    return { valid: false, error: formatInvalidStartUrlError(rawUrl, label) };
-  }
-
-  return { valid: true, url };
-};
+const parseStartUrl = (rawUrl, label = 'base URL') =>
+  ((url) => (url ? { valid: true, url } : { valid: false, error: _formatInvalidStartUrlError(rawUrl, label) }))(
+    normalizeUrl(rawUrl.trim()),
+  );
 
 module.exports = {
   normalizeUrl,

@@ -13,7 +13,7 @@ describe('crawler', () => {
   let logStub;
   let errorStub;
 
-  const runCrawler = (startUrl, options = {}) => {
+  const _runCrawler = (startUrl, options = {}) => {
     fetchCallCount = 0;
 
     return crawler
@@ -54,27 +54,23 @@ describe('crawler', () => {
       describe('with same-host and external links', () => {
         it('should print all links and follow same-host links only', async () => {
           fetchHandler = async (url) => {
-            if (url === urls.origin) {
-              return createMockResponse({
-                url: urls.origin,
-                body: `
+            if (url === urls.origin) return createMockResponse({
+              url: urls.origin,
+              body: `
                   <a href="/about">About</a>
                   <a href="${urls.external}">External</a>
                 `,
-              });
-            }
+            });
 
-            if (url === urls.about) {
-              return createMockResponse({
-                url: urls.about,
-                body: '<a href="/">Home</a>',
-              });
-            }
+            if (url === urls.about) return createMockResponse({
+              url: urls.about,
+              body: '<a href="/">Home</a>',
+            });
 
             throw new Error(`Unexpected fetch: ${url}`);
           };
 
-          await runCrawler(urls.origin);
+          await _runCrawler(urls.origin);
 
           expect(fetchCallCount).to.equal(2);
           expect(logStub.firstCall.args[0]).to.equal(urls.origin);
@@ -95,7 +91,7 @@ describe('crawler', () => {
               `,
             });
 
-          await runCrawler(urls.origin, { maxPages: 1 });
+          await _runCrawler(urls.origin, { maxPages: 1 });
 
           expect(fetchCallCount).to.equal(1);
         });
@@ -112,7 +108,7 @@ describe('crawler', () => {
               `,
             });
 
-          await runCrawler(urls.origin);
+          await _runCrawler(urls.origin);
 
           expect(fetchCallCount).to.equal(1);
         });
@@ -128,7 +124,7 @@ describe('crawler', () => {
             body: '%PDF',
           });
 
-        await runCrawler(urls.pdf);
+        await _runCrawler(urls.pdf);
 
         expect(logStub.firstCall.args[0]).to.equal(urls.pdf);
         expect(logStub.calledWith('')).to.be.true;
@@ -141,7 +137,7 @@ describe('crawler', () => {
           throw new Error('network failure');
         };
 
-        await runCrawler(urls.origin);
+        await _runCrawler(urls.origin);
 
         expect(errorStub.calledOnce).to.be.true;
         expect(errorStub.firstCall.args[0]).to.include('network failure');
@@ -156,7 +152,7 @@ describe('crawler', () => {
               ok: false,
             });
 
-          await runCrawler(urls.origin);
+          await _runCrawler(urls.origin);
 
           expect(logStub.calledWith(`Skipped ${urls.origin}: server error (HTTP 500)`)).to.be.true;
           expect(errorStub.called).to.be.false;
@@ -170,7 +166,7 @@ describe('crawler', () => {
               ok: false,
             });
 
-          await runCrawler(urls.origin);
+          await _runCrawler(urls.origin);
 
           expect(logStub.calledWith(`Skipped ${urls.origin}: page not found (HTTP 404)`)).to.be
             .true;
@@ -185,7 +181,7 @@ describe('crawler', () => {
               ok: false,
             });
 
-          await runCrawler(urls.origin);
+          await _runCrawler(urls.origin);
 
           expect(
             logStub.calledWith(`Skipped ${urls.origin}: unauthorized (HTTP 401)`),
@@ -199,7 +195,7 @@ describe('crawler', () => {
             throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
           };
 
-          await runCrawler(urls.retry);
+          await _runCrawler(urls.retry);
 
           expect(errorStub.firstCall.args[0]).to.include('timed out or aborted');
         });
@@ -211,7 +207,7 @@ describe('crawler', () => {
             throw Object.assign(new Error('aborted'), { name: 'AbortError' });
           };
 
-          await runCrawler(urls.retry);
+          await _runCrawler(urls.retry);
 
           expect(errorStub.firstCall.args[0]).to.include('timed out or aborted');
         });
@@ -226,7 +222,7 @@ describe('crawler', () => {
             body: '<a href="/">Home</a>',
           });
 
-        await runCrawler(urls.redirect);
+        await _runCrawler(urls.redirect);
 
         expect(errorStub.firstCall.args[0]).to.include('redirected off-domain');
       });
